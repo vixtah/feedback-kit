@@ -80,7 +80,7 @@ def feedback_router(store: FeedbackStore, *, submit_auth: Callable, admin_auth: 
         if on_new is not None:
             try:
                 await _call(on_new, await asyncio.to_thread(store.get, item_id))
-            except Exception:  # noqa: BLE001 (a forwarding hook never loses the report)
+            except Exception:
                 log.exception("feedback on_new hook failed for #%s", item_id)
         return {"id": item_id}
 

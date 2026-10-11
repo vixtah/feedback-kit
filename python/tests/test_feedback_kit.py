@@ -4,8 +4,12 @@ import sqlite3
 import pytest
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
-
-from feedback_kit import MAX_SCREENSHOT, FeedbackStore, ScreenshotTooLarge, feedback_router
+from feedback_kit import (
+    MAX_SCREENSHOT,
+    FeedbackStore,
+    ScreenshotTooLarge,
+    feedback_router,
+)
 from feedback_kit.cli import main as cli
 
 JPEG = b"\xff\xd8\xff\xe0fake-jpeg"
@@ -141,7 +145,7 @@ def test_auth_dependencies(store):
 
 def test_validation_and_404s(store):
     c = _client(store)
-    post = lambda body: c.post("/api/x/feedback", json=body, headers=APP)  # noqa: E731
+    post = lambda body: c.post("/api/x/feedback", json=body, headers=APP)
     assert post({"kind": "rant", "text": "x"}).status_code == 422
     assert post({"kind": "bug", "text": ""}).status_code == 422
     assert post({"kind": "bug", "text": "   "}).status_code == 422
