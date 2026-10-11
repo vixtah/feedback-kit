@@ -54,7 +54,8 @@ def feedback_router(store: FeedbackStore, *, submit_auth: Callable, admin_auth: 
     refuse). ``reporter_from(request)`` / ``player_from(request)`` fill the report's
     ``reporter`` / ``player`` columns (sync or async). ``on_new(report)`` runs after each
     insert with the stored report (as ``GET /feedback/{id}`` answers it); its exceptions
-    are logged, never raised.
+    are logged and answer 503 so the client retries the same request ID.
+    Hooks must be idempotent.
     """
     router = APIRouter()
     admin = [Depends(admin_auth)]

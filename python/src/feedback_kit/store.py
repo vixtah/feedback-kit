@@ -44,9 +44,11 @@ def _row(r) -> dict:
 
 
 class FeedbackStore:
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path, *, connection_factory=None):
         self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection_factory = connection_factory
+        if connection_factory is None:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self._db() as conn:
             conn.execute(_DDL)
             cols = {r[1] for r in conn.execute("PRAGMA table_info(feedback)")}
@@ -59,8 +61,12 @@ class FeedbackStore:
     @contextmanager
     def _db(self):
         """A connection that commits (or rolls back) and closes at the end of a ``with``."""
-        with closing(sqlite3.connect(self.db_path, timeout=30)) as conn, conn:
-            yield conn
+        if self._connection_factory is not None:
+            with self._connection_factory() as conn:
+                yield conn
+        else:
+            with closing(sqlite3.connect(self.db_path, timeout=30)) as conn, conn:
+                yield conn
 
     def add(self, *, kind: str, text: str, context: dict | None = None,
             screenshot: bytes | None = None, diagnostics: str | None = None,

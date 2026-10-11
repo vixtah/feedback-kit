@@ -233,3 +233,20 @@ def test_retry_after_forwarding_failure_is_idempotent(store):
     assert result.status_code == 200
     assert calls == [result.json()["id"], result.json()["id"]]
     assert len(store.list()) == 1
+
+
+def test_host_connection_factory_preserves_database_boundary(tmp_path):
+    from contextlib import contextmanager
+    calls = []
+    conn = sqlite3.connect(":memory:")
+    @contextmanager
+    def owned_connection():
+        calls.append(True)
+        with conn:
+            yield conn
+    unused_path = tmp_path / "must-not-be-opened" / "app.db"
+    store = FeedbackStore(unused_path, connection_factory=owned_connection)
+    rid = store.add(kind="bug", text="guarded storage")
+    assert store.get(rid)["text"] == "guarded storage"
+    assert len(calls) == 3 and not unused_path.parent.exists()
+    conn.close()
