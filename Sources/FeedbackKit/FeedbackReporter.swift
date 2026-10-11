@@ -69,8 +69,9 @@ struct FeedbackReporterModifier: ViewModifier {
               var top = window.rootViewController else { return }
         while let next = top.presentedViewController { top = next }
         let shot = FeedbackScreenshot.capture(window)
-        let context = FeedbackContext.build(appID: config.appID, buildSHAInfoKey: config.buildSHAInfoKey,
+        var context = FeedbackContext.build(appID: config.appID, buildSHAInfoKey: config.buildSHAInfoKey,
                                             screen: config.screen(), reporter: config.reporter())
+        context.extra = config.context()
         let diagnostics = config.diagnostics?().map { FeedbackLimits.truncateDiagnostics($0) }
         let client = client(for: config)
         Task { await client.retryQueued() }

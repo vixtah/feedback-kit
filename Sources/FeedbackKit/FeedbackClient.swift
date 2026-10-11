@@ -4,7 +4,7 @@ public enum FeedbackSendError: Error, LocalizedError {
     /// Not delivered (offline, timeout, server error); saved as queue entry `entryID` and
     /// retried by ``FeedbackClient/retryQueued()``.
     case queued(entryID: String, underlying: Error)
-    /// The server refused it (a 4xx other than 408/429); retrying won't help, so it was
+    /// The server refused it (a 4xx other than 401/403/408/429); retrying won't help, so it was
     /// not queued.
     case rejected(status: Int, body: String)
 
@@ -88,10 +88,11 @@ public actor FeedbackClient {
         let (data, response) = try await session.data(for: try request(for: payload))
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
         if (200...299).contains(status) {
-            // Stored either way; an odd body must not queue a duplicate.
-            return (try? JSONDecoder().decode(FeedbackReceipt.self, from: data)) ?? FeedbackReceipt(id: 0)
+            let receipt = try JSONDecoder().decode(FeedbackReceipt.self, from: data)
+            guard receipt.id > 0 else { throw URLError(.badServerResponse) }
+            return receipt
         }
-        if (400...499).contains(status), status != 408, status != 429 {
+        if (400...499).contains(status), ![401, 403, 408, 429].contains(status) {
             throw FeedbackSendError.rejected(status: status, body: String(decoding: data, as: UTF8.self))
         }
         throw URLError(.badServerResponse, userInfo: [NSLocalizedDescriptionKey: "The server answered \(status)."])

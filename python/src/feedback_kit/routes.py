@@ -22,6 +22,7 @@ MAX_DIAGNOSTICS = 64 * 1024
 
 
 class FeedbackIn(BaseModel):
+    requestID: str | None = Field(default=None, min_length=1, max_length=128)
     kind: Literal["bug", "idea"]
     text: str = Field(min_length=1, max_length=MAX_TEXT)
     context: dict[str, str] = Field(default_factory=dict)
@@ -75,13 +76,16 @@ def feedback_router(store: FeedbackStore, *, submit_auth: Callable, admin_auth: 
         player = await _call(player_from, request) if player_from else None
         item_id = await asyncio.to_thread(
             store.add, kind=body.kind, text=text, context=body.context,
-            screenshot=shot, diagnostics=body.diagnostics, player=player, reporter=reporter)
+            screenshot=shot, diagnostics=body.diagnostics, player=player, reporter=reporter,
+            request_id=body.requestID)
         log.info("feedback #%s (%s) from %s", item_id, body.kind, reporter or player or "?")
         if on_new is not None:
             try:
                 await _call(on_new, await asyncio.to_thread(store.get, item_id))
             except Exception:
                 log.exception("feedback on_new hook failed for #%s", item_id)
+                # Retry with the same request ID; storage and the host hook must be idempotent.
+                raise HTTPException(503, "report saved; delivery will retry") from None
         return {"id": item_id}
 
     @router.get("/feedback", dependencies=admin)

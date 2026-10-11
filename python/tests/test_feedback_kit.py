@@ -103,7 +103,7 @@ def test_store_adds_diagnostics_to_riftbound_table(tmp_path):
     FeedbackStore(path)  # reopening an upgraded table is a no-op
     with sqlite3.connect(path) as conn:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(feedback)")]
-    assert cols[-1] == "diagnostics" and cols.count("diagnostics") == 1
+    assert cols.count("request_id") == 1 and cols.count("diagnostics") == 1
 
 
 # --- routes ------------------------------------------------------------------
@@ -185,7 +185,7 @@ def test_on_new_gets_report_and_failures_are_logged(store, caplog):
 
     c = _client(store, on_new=boom)
     r = c.post("/api/x/feedback", json={"kind": "bug", "text": "still saved"}, headers=APP)
-    assert r.status_code == 200 and store.get(r.json()["id"])["text"] == "still saved"
+    assert r.status_code == 503 and store.list()[0]["text"] == "still saved"
     assert "on_new hook failed" in caplog.text
 
 
@@ -218,3 +218,18 @@ def test_cli(store, tmp_path, capsys):
         cli(["--db", db, "status", "999", "done"])
     with pytest.raises(SystemExit):
         cli(["--db", str(tmp_path / "missing.db"), "list"])
+
+
+def test_retry_after_forwarding_failure_is_idempotent(store):
+    calls = []
+    def forward(report):
+        calls.append(report["id"])
+        if len(calls) == 1:
+            raise RuntimeError("temporarily down")
+    client = _client(store, on_new=forward)
+    payload = {"kind": "bug", "text": "only once", "requestID": "stable-id"}
+    assert client.post("/api/x/feedback", json=payload, headers=APP).status_code == 503
+    result = client.post("/api/x/feedback", json=payload, headers=APP)
+    assert result.status_code == 200
+    assert calls == [result.json()["id"], result.json()["id"]]
+    assert len(store.list()) == 1

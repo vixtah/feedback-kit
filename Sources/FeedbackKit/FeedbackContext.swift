@@ -12,6 +12,7 @@ public struct FeedbackContext: Equatable, Sendable {
     public var deviceModel: String
     public var screen: String?
     public var reporter: String?
+    public var extra: [String: String] = [:]
 
     public init(appID: String, version: String, buildSHA: String, osVersion: String,
                 deviceModel: String, screen: String? = nil, reporter: String? = nil) {
@@ -51,7 +52,7 @@ public struct FeedbackContext: Equatable, Sendable {
                    "device": deviceModel]
         if let screen { out["screen"] = screen }
         if let reporter { out["reporter"] = reporter }
-        return out
+        return out.merging(extra) { original, _ in original }
     }
 
     /// `"26.0"` or `"26.0.1"`, as `UIDevice.systemVersion` spells it (readable off the

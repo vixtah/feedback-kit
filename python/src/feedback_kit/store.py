@@ -50,8 +50,11 @@ class FeedbackStore:
         with self._db() as conn:
             conn.execute(_DDL)
             cols = {r[1] for r in conn.execute("PRAGMA table_info(feedback)")}
-            if "diagnostics" not in cols:
-                conn.execute("ALTER TABLE feedback ADD COLUMN diagnostics TEXT")
+            for column in ("diagnostics", "request_id"):
+                if column not in cols:
+                    conn.execute(f"ALTER TABLE feedback ADD COLUMN {column} TEXT")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS feedback_request_id "
+                         "ON feedback(request_id) WHERE request_id IS NOT NULL")
 
     @contextmanager
     def _db(self):
@@ -61,7 +64,8 @@ class FeedbackStore:
 
     def add(self, *, kind: str, text: str, context: dict | None = None,
             screenshot: bytes | None = None, diagnostics: str | None = None,
-            player: str | None = None, reporter: str | None = None) -> int:
+            player: str | None = None, reporter: str | None = None,
+            request_id: str | None = None) -> int:
         if kind not in KINDS:
             raise ValueError(f"kind must be one of {KINDS}")
         if screenshot is not None and len(screenshot) > MAX_SCREENSHOT:
@@ -69,11 +73,19 @@ class FeedbackStore:
         context = dict(list((context or {}).items())[:MAX_CONTEXT_KEYS])
         stamp = _now()
         with self._db() as conn:
+            if request_id:
+                existing = conn.execute("SELECT id FROM feedback WHERE request_id=?",
+                                        (request_id,)).fetchone()
+                if existing:
+                    return existing[0]
             cur = conn.execute(
-                "INSERT INTO feedback(created_at, player, reporter, kind, text, context, "
-                "screenshot, updated_at, diagnostics) VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT OR IGNORE INTO feedback(created_at, player, reporter, kind, text, context, "
+                "screenshot, updated_at, diagnostics, request_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (stamp, player, reporter, kind, text, json.dumps(context), screenshot, stamp,
-                 diagnostics))
+                 diagnostics, request_id))
+            if cur.rowcount == 0:
+                return conn.execute("SELECT id FROM feedback WHERE request_id=?",
+                                        (request_id,)).fetchone()[0]
             return cur.lastrowid
 
     def list(self, status: str | None = None, limit: int = 100) -> list[dict]:

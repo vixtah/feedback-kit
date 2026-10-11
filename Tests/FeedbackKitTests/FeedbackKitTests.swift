@@ -74,7 +74,7 @@ final class FeedbackKitTests: XCTestCase {
     }
 
     func payload(_ text: String = "it broke") -> FeedbackPayload {
-        FeedbackPayload(kind: .bug, text: text, context: ["app": "test"])
+        FeedbackPayload(kind: .bug, text: text, context: ["app": "test"], requestID: "test-" + text)
     }
 
     func json(_ data: Data) throws -> [String: Any] {
@@ -88,7 +88,7 @@ final class FeedbackKitTests: XCTestCase {
         let p = FeedbackPayload(kind: .idea, text: "  dark mode \n", context: ["screen": "Today"],
                                 diagnostics: "GET /x 200", screenshotJPEG: jpeg)
         let body = try json(p.encoded())
-        XCTAssertEqual(Set(body.keys), ["kind", "text", "context", "diagnostics", "screenshot"])
+        XCTAssertEqual(Set(body.keys), ["requestID", "kind", "text", "context", "diagnostics", "screenshot"])
         XCTAssertEqual(body["kind"] as? String, "idea")
         XCTAssertEqual(body["text"] as? String, "dark mode")
         XCTAssertEqual(body["context"] as? [String: String], ["screen": "Today"])
@@ -98,7 +98,7 @@ final class FeedbackKitTests: XCTestCase {
 
     func testPayloadOmitsAbsentOptionals() throws {
         let p = FeedbackPayload(kind: .bug, text: "x", context: [:], diagnostics: "")
-        XCTAssertEqual(Set(try json(p.encoded()).keys), ["kind", "text", "context"])
+        XCTAssertEqual(Set(try json(p.encoded()).keys), ["requestID", "kind", "text", "context"])
     }
 
     func testTextIsCappedAt4000Characters() {
@@ -225,6 +225,23 @@ final class FeedbackKitTests: XCTestCase {
         let sent = await client.retryQueued()
         XCTAssertEqual(sent, 0)
         XCTAssertTrue(client.queue.entries().isEmpty)
+    }
+
+    func testAuthenticationAndInvalidReceiptsKeepQueuedReport() async throws {
+        let client = makeClient()
+        let original = payload()
+        try client.queue.enqueue(original)
+        for (status, body) in [(401, "expired"), (403, "login"), (200, "<html>Sign in</html>"), (200, "{\"id\":0}")] {
+            StubProtocol.handler = { _ in (status, Data(body.utf8)) }
+            let sent = await client.retryQueued()
+            XCTAssertEqual(sent, 0)
+            XCTAssertEqual(client.queue.entries().count, 1)
+        }
+        StubProtocol.handler = { _ in (200, Data(#"{"id":42}"#.utf8)) }
+        let sent = await client.retryQueued()
+        XCTAssertEqual(sent, 1)
+        let ids = try StubProtocol.requests.map { try json(XCTUnwrap($0.httpBody))["requestID"] as? String }
+        XCTAssertEqual(Set(ids.compactMap { $0 }), [original.requestID!])
     }
 
     func testQueueKeepsTheNewest20() throws {

@@ -13,6 +13,8 @@ public struct FeedbackConfig {
     public var headers: @Sendable () -> [String: String]
     /// What's on screen when the device is shaken, e.g. `"Today"` or `"task 123"`.
     public var screen: () -> String?
+    /// Product context, such as Riftbound’s game ID and turn.
+    public var context: () -> [String: String]
     /// Optional extra text, e.g. the last two minutes of the app's network log; capped
     /// at ``FeedbackLimits/maxDiagnosticsBytes``.
     public var diagnostics: (() -> String?)?
@@ -28,7 +30,8 @@ public struct FeedbackConfig {
         screen: @escaping () -> String? = { nil },
         diagnostics: (() -> String?)? = nil,
         buildSHAInfoKey: String,
-        reporter: @escaping () -> String? = { nil }
+        reporter: @escaping () -> String? = { nil },
+        context: @escaping () -> [String: String] = { [:] }
     ) {
         self.appID = appID
         self.baseURL = baseURL
@@ -37,6 +40,7 @@ public struct FeedbackConfig {
         self.diagnostics = diagnostics
         self.buildSHAInfoKey = buildSHAInfoKey
         self.reporter = reporter
+        self.context = context
     }
 }
 

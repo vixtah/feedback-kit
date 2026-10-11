@@ -10,7 +10,12 @@ Shake-to-report for the apps, in two halves that share one contract:
   app mounts under its own prefix, and a review CLI.
 
 Generalised from Riftbound's shake-to-report. The table is Riftbound's `feedback`
-schema plus a nullable `diagnostics` column (added in place on an existing table).
+schema plus nullable `diagnostics` and `request_id` columns (added in place).
+All four apps use this implementation, including Riftbound itself. Requests carry a
+stable ID so a retry returns the original receipt; a successful response must contain
+a valid receipt. Product identity, authentication and workflow hooks stay in each app.
+Hooks may run again after a retry and must be idempotent; hook failure returns 503
+while preserving the report.
 
 ## Swift: `FeedbackKit`
 
@@ -20,7 +25,7 @@ XcodeGen `project.yml`:
 packages:
   FeedbackKit:
     url: https://github.com/vixtah/feedback-kit
-    from: 0.1.0
+    exactVersion: 0.2.0
 targets:
   MyApp:
     dependencies:
@@ -51,7 +56,7 @@ ContentView()
 - Unsent reports live in `Application Support/FeedbackKit/queue/*.json`, at most 20
   (the oldest is dropped). The modifier retries them when the root view appears, and
   again each time the sheet opens. Reports the server refuses (4xx other than
-  408/429) are not queued.
+  401/403/408/429) are not queued. Authentication failures remain queued until sign-in is repaired.
 - The pieces are public on their own: `FeedbackClient` (an actor; injectable
   `URLSession` and `FeedbackQueue`), `FeedbackPayload`, `FeedbackContext`,
   `FeedbackSheet`, and `FeedbackReporter.shared.present(config:)`.
