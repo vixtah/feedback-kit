@@ -1,0 +1,19 @@
+[project]
+name = "feedback-kit"
+version = "0.1.0"
+description = "Shake-to-report storage, routes and review CLI shared by the apps"
+requires-python = ">=3.12"
+dependencies = ["fastapi", "pydantic"]
+
+[dependency-groups]
+dev = ["pytest", "httpx"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/feedback_kit"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,13 @@
+.DS_Store
+# Swift
+.build/
+.swiftpm/
+DerivedData/
+*.xcresult
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+dist/
+*.egg-info/
