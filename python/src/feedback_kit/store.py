@@ -109,6 +109,17 @@ class FeedbackStore:
                              (item_id,)).fetchone()
         return _row(r) | {"diagnostics": r[12]} if r else None
 
+    def since(self, after: int, limit: int = 100) -> list[dict]:
+        """Stable oldest-first delivery cursor, independent of mutable report status.
+
+        No diagnostics or screenshots are included. The consumer advances its cursor
+        only after durably processing the page, so concurrent inserts cannot hide rows.
+        """
+        with self._db() as conn:
+            rows = conn.execute(f"SELECT {_COLS} FROM feedback WHERE id>? ORDER BY id LIMIT ?",
+                                (after, limit)).fetchall()
+        return [_row(r) for r in rows]
+
     def screenshot(self, item_id: int) -> bytes | None:
         with self._db() as conn:
             r = conn.execute("SELECT screenshot FROM feedback WHERE id=?", (item_id,)).fetchone()
@@ -122,4 +133,3 @@ class FeedbackStore:
             return conn.execute(
                 "UPDATE feedback SET status=?, note=COALESCE(?, note), updated_at=? WHERE id=?",
                 (status, note, _now(), item_id)).rowcount > 0
-

@@ -1,6 +1,6 @@
 [project]
 name = "feedback-kit"
-version = "0.2.1"
+version = "0.2.2"
 description = "Shake-to-report storage, routes and review CLI shared by the apps"
 requires-python = ">=3.12"
 dependencies = ["fastapi", "pydantic"]

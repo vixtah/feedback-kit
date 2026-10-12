@@ -91,7 +91,12 @@ def feedback_router(store: FeedbackStore, *, submit_auth: Callable, admin_auth: 
 
     @router.get("/feedback", dependencies=admin)
     async def list_feedback(status: Literal[STATUSES] | None = None,  # type: ignore[valid-type]
-                            limit: int = Query(100, ge=1, le=500)):
+                            limit: int = Query(100, ge=1, le=500),
+                            after: int | None = Query(None, ge=0)):
+        if after is not None:
+            if status is not None:
+                raise HTTPException(422, "cursor delivery cannot filter mutable status")
+            return await asyncio.to_thread(store.since, after, limit)
         return await asyncio.to_thread(store.list, status, limit)
 
     @router.get("/feedback/{item_id}", dependencies=admin)
